@@ -2,6 +2,8 @@ from requests_oauthlib import OAuth2Session
 from selenium import webdriver
 from time import sleep
 
+import pickle
+
 import account
 import endpoints
 import orders
@@ -38,8 +40,8 @@ class TDAClient(OAuth2Session):
             returns:
                 boolean indicating login success/failure
         """
-        if not isinstance(webbrowser, webdriver):
-            raise TypeError("login session not provided with type 'webdriver'")
+        #if not isinstance(webbrowser, webdriver):
+            #raise TypeError("login session not provided with type 'webdriver'")
 
         authorization_url, _ = self.authorization_url(self.endpoints['auth'])
 
@@ -70,6 +72,19 @@ class TDAClient(OAuth2Session):
         else:
             return 0
 
+    def load_session(self):
+        """
+        """
+        with open("tokens", 'rb') as f:
+            self.token = pickle.load(f)
+            self.access_token = self.token['access_token']
+
+    def save_session(self):
+        """
+        """
+        with open("tokens", 'wb') as f:
+            pickle.dump(self.token, f)
+
     def is_authorized(self):
         """
         Raise exception is session is not authorized
@@ -77,39 +92,59 @@ class TDAClient(OAuth2Session):
         if not self.authorized:
             raise NotAuthorized("Session not authorized")
 
-    def get_accounts(self):
+    def get_accounts(self, params={}):
         """
         returns all accounts associated with the given login
         """
-        self.isauthorized()
+        self.is_authorized()
 
-        return self.get(self.endpoints['accounts']).json()
+        r = self.get(self.endpoints['accounts'], params=params)
 
-    def account_overview(self, log=False):
+        if r.status_code == 200:
+            return (1, r)
+        else:
+            return (0, r)
+
+    def get_account(self, accountId, params={}):
         """
-        Prints account overview to console, option to log
+        gets the account specified in the accountId input
+
+            args:
+                accountId - account to get from td ameritrade
+                params - query parameters for returning more information
+                    ex: fields=positions,orders 
+                    returns information for positions and orders, if not 
+                    supplied only information for account balances is
+                    returned
         """
-        print('Account Id: {}'.format(self.account.account_id))
-        print('Type: {}'.format(self.account.type))
-        print('Liquidation Value: {}'.format(self.account.currentBalances['liquidationValue']))
-        print('Available Funds: {}'.format(self.account.projectedBalances['availableFunds']))
+        self.is_authorized()
+
+        # get account information
+        r = self.get(self.endpoints['account'].format(accountId=accountId), params=params)
+
+        if r.status_code == 200:
+            return (1, r)
+        else:
+            return (0, None)
 
     def refresh_account(self):
         """
         Refresh the account status
         """
-        self.isauthorized()
+        self.is_authorized()
 
         if not self.account.account_id:
             raise ValueError("account_id not defined")
 
         # get account information    
-        r = self.get(self.endpoints['account'].format(accountId=self.account.account_id)).json()
+        status, r = self.get_account(accountId=self.account.account_id, params={'fields':'positions,orders'})
 
-        # pass to account instance
-        self.account.parse_response(r)
-
-        return self.account_overview()
+        # pass to account instance and then return 
+        if status:
+            self.account.parse_response(r.json())
+            return (1, r)
+        else:
+            return (0, r)
 
     def place_order(self, order):
         """
@@ -122,12 +157,10 @@ class TDAClient(OAuth2Session):
                 Tuple in the form of (Status, Response)
                     Where:
                         Status - Boolean indicating successful post transaction
-                        Response - The orderId if the transaction was successful or
-                                   the error message if transaction failed. 
-            
-            TO-DO: ADD LOGGERS AND ORDER HISTORY CLASS
+                        OrderId - Id of transaction if successful
+                        Response - full response from request
         """
-        self.isauthorized()
+        self.is_authorized()
 
         if not issubclass(type(order), orders.Order):
             raise TypeError("Given order not subclass of type Order")
@@ -137,9 +170,9 @@ class TDAClient(OAuth2Session):
 
         if r.status_code == 201:
             orderId = r.headers.get('Location').split('/')[-1]
-            return (1, orderId)
+            return (1, orderId, r)
         else:
-            return (0, r.json())
+            return (0, None, r)
 
     def cancel_order(self, orderId):
         """
@@ -150,11 +183,11 @@ class TDAClient(OAuth2Session):
 
             returns:
                 Boolean of whether transaction was successful
-
+ 
             TO-DO: ADD LOGGERS AND ORDER HISTORY CLASS
             ALSO What happens when order already went through? Test out
         """
-        self.isauthorized()
+        self.is_authorized()
 
         # Delete order from TDA
         r = self.delete(self.endpoints['cancel_order'].format(accountId=self.account.account_id,orderId=orderId))
@@ -174,7 +207,7 @@ class TDAClient(OAuth2Session):
                 toEnteredTime - End of orders to retrieve (yyyy-MM-dd)
                 status - Specific that only orders of this status should be returned
         """ 
-        self.isauthorized()
+        self.is_authorized()
 
         if kwargs:
             params = kwargs
@@ -195,7 +228,7 @@ class TDAClient(OAuth2Session):
             args:
                 orderId (type: str) orderId for order to get information for
         """
-        self.isauthorized()
+        self.is_authorized()
 
         r = self.get(self.endpoints['get_order'].format(accountId=self.account.account_id,orderId=orderId))
 
