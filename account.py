@@ -15,6 +15,12 @@ class Account():
         self.projectedBalances = {}
         self.positions = {}
         self.orderStrategies = {}
+    
+    def __str__(self):
+        return f"ACCOUNT ID: {self.account_id}\n" + \
+               f"ACCOUNT TYPE: {self.type}\n" + \
+               f"LIQUIDATION VALUE: {self.currentBalances['liquidationValue']}\n" + \
+               f"OPENED POSITIONS: {len(self.positions)}"          
 
     @property
     def account_id(self):
@@ -35,7 +41,7 @@ class Account():
         self.projectedBalances = d.get('projectedBalances', {})
         self.positions = d.get('positions', {})
         self.orderStrategies = d.get('orderStrategies', {})
-
+    
     def account_overview(self):
         """
         prints all account details into console including account id, type,
@@ -44,34 +50,31 @@ class Account():
         print(f"ACCOUNT ID: {self.account_id}")
         print(f"ACCOUNT TYPE: {self.type}")
 
-        print('\n')
 
-        print('INITAL BALANCES:')
-        for kv in self.initalBalances.keys():
-            print(f"    {self.convert_case(kv)}: $ {self.initalBalances[kv]}")
+        print('\nINITAL BALANCES:')
+        self.print_dict(self.initalBalances, prefix=' '*4)
 
-        print('\n')
 
-        print('CURRENT BALANCES:')
-        for kv in self.currentBalances.keys():
-            print(f"    {self.convert_case(kv)}: $ {self.currentBalances[kv]}")
+        print('\nCURRENT BALANCES:')
+        self.print_dict(self.currentBalances, prefix=' '*4)
 
-        print('\n')
-        
-        print('OPENED POSITIONS:')
-        for position in self.positions:
-            for kv in position['instrument'].keys():
-                print(f"    {self.convert_case(kv)}: {position['instrument'][kv]}")
-            for kv in position.keys():
-                if kv == 'instrument':
-                    continue
-                else:
-                    print(f"        {self.convert_case(kv)}: {position[kv]}")
-            print('\n')
+
+        print('\nOPENED POSITIONS:')
+        for i, position in enumerate(self.positions):
+            print(f"\n    POSITION {i}:")
+            self.print_dict(position['instrument'], prefix=' '*8)
+            self.print_dict(position, prefix=' '*12, ignore=['instrument'])
 
     @staticmethod
     def convert_case(s):
         """
         """
         return ' '.join(re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', s)).split()).capitalize()
+
+    def print_dict(self, d, prefix='', ignore=[]):
+        """
+        """
+        for kv in d.keys():
+            if kv not in ignore:
+                print(f"{prefix}{self.convert_case(kv)}: {d[kv]}")
     

@@ -1,5 +1,4 @@
 from requests_oauthlib import OAuth2Session
-from selenium import webdriver
 from time import sleep
 
 import pickle
@@ -24,6 +23,7 @@ class TDAClient(OAuth2Session):
         
         self.endpoints = endpoints.Endpoints()
         self.account = account.Account()
+        self.history = orders.OrderHistory()
 
         self.redirect_uri = redirect_uri
         self.auto_refresh_url = self.endpoints['token']
@@ -146,6 +146,24 @@ class TDAClient(OAuth2Session):
         else:
             return (0, r)
 
+    def refresh_orders(self):
+        """
+        Refreshes status of the orders
+        """
+        self.is_authorized()
+
+        # get all orders
+        status, r = self.all_orders()
+
+        if status:
+            for order in r.json():
+                if self.history[order['orderId']]:
+                    self.history[order['orderId']].update(order)
+            return 1
+        else:
+            return 0
+
+
     def place_order(self, order):
         """
         Place an order through TD ameritrade
@@ -157,7 +175,6 @@ class TDAClient(OAuth2Session):
                 Tuple in the form of (Status, Response)
                     Where:
                         Status - Boolean indicating successful post transaction
-                        OrderId - Id of transaction if successful
                         Response - full response from request
         """
         self.is_authorized()
@@ -169,10 +186,13 @@ class TDAClient(OAuth2Session):
         r = self.post(self.endpoints['place_order'].format(accountId=self.account.account_id), json=order.form())
 
         if r.status_code == 201:
-            orderId = r.headers.get('Location').split('/')[-1]
-            return (1, orderId, r)
+            order.orderId = int(r.headers.get('Location').split('/')[-1])
+
+            self.history.append(order)
+
+            return (1, r)
         else:
-            return (0, None, r)
+            return (0, r)
 
     def cancel_order(self, orderId):
         """
@@ -217,9 +237,9 @@ class TDAClient(OAuth2Session):
         r = self.get(self.endpoints['all_orders'].format(accountId=self.account.account_id),params=params)
         
         if r.status_code == 200:
-            return (1, r.json())
+            return (1, r)
         else:
-            return (0, r.json())
+            return (0, r)
 
     def get_order(self, orderId):
         """
@@ -235,12 +255,35 @@ class TDAClient(OAuth2Session):
         if r.status_code == 200:
             return (1, r.json())
         else:
-            return (0, r.jsoin())
+            return (0, r.json())
     
     def replace_order(self, order):
         """
+        Replace an existing order through td ameritrade
+
+            args: 
+                order (type: Order) Takes instances of any subclasse of order (Equity, Option, etc)
+
+            returns:
+                Tuple in the form of (Status, Response)
+                    Where:
+                        Status - Boolean indicating successful post transaction
+                        OrderId - Id of transaction if successful
+                        Response - full response from request
         """
-        pass
+        self.is_authorized()
+
+        if not issubclass(type(order), orders.Order):
+            raise TypeError("Given order not subclass of type Order")
+
+        # Post order to TDA
+        r = self.post(self.endpoints['place_order'].format(accountId=self.account.account_id), json=order.form())
+
+        if r.status_code == 201:
+            orderId = r.headers.get('Location').split('/')[-1]
+            return (1, orderId, r)
+        else:
+            return (0, None, r)
 
     def instruments(self, symbol, projection='symbol-search'):
         """
