@@ -1,24 +1,15 @@
 from exceptions import InvalidOrder
+import re
 
-
-class OrderHistory(list):
+class OrderHistory(dict):
     """
     """
     def __init__(self):
         super().__init__(self)
-
-    def __getitem__(self, orderId):
-        for order in self:
-            if order.orderId == orderId:
-                return order
-            else:
-                return 0 
-
+                
 
 class Order():
     """
-    Order can only be used to complete a single order, once the order is placed, the object
-    is stored in the order history 
     """
     def __init__(
         self,
@@ -29,9 +20,6 @@ class Order():
         **kwargs
         ):
 
-        self._orderId = None
-        self._status = None
-
         self.orderType = orderType
         self.session = session
         self.duration = duration
@@ -39,31 +27,11 @@ class Order():
         self.orderLegCollection = []
         self.__dict__.update(kwargs)
 
-    @property
-    def orderId(self):
-        return self._orderId
-
-    @orderId.setter
-    def orderId(self, orderId):
-        self._orderId = orderId
-
-    @property
-    def status(self):
-        return self._status
-
-    @status.setter
-    def status(self, status):
-        self._status = status
-
     def form(self):
         """
         """
         if self._validate():
-            order = {}
-            for kv in self.__dict__.keys():
-                if self.__dict__[kv] is not None:
-                    order[kv] = self.__dict__[kv]
-            return order
+            return self.__dict__
         else:
             raise InvalidOrder
 

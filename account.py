@@ -1,26 +1,22 @@
 import re
 
-
-class Account():
+class Account:
     """
     """
     def __init__(self, account_id=''):
         self._account_id = account_id
-        self.type = ''
-        self.roundTrips = 0
-        self.isDayTrader = False
-        self.isClosingOnlyRestricted = False
-        self.initalBalances = {}
+
+        self.type = None
+        self.roundTrips = None
+        self.isDayTrader = None
+        self.isClosingOnlyRestricted = None
+        
+        self.initialBalances = {}
         self.currentBalances = {}
         self.projectedBalances = {}
-        self.positions = {}
-        self.orderStrategies = {}
-    
-    def __str__(self):
-        return f"ACCOUNT ID: {self.account_id}\n" + \
-               f"ACCOUNT TYPE: {self.type}\n" + \
-               f"LIQUIDATION VALUE: {self.currentBalances['liquidationValue']}\n" + \
-               f"OPENED POSITIONS: {len(self.positions)}"          
+
+        self.positions = Positions()
+        self.orderStategies = []
 
     @property
     def account_id(self):
@@ -30,51 +26,74 @@ class Account():
     def account_id(self, account_id):
         self._account_id = account_id
 
-    def parse_response(self, r):
-        d = r['securitiesAccount']
-        self.type = d.get('type')
-        self.roundTrips = d.get('roundTrips')
-        self.isDayTrader = d.get('isDayTrader')
-        self.isClosingOnlyRestricted = d.get('isClosingOnlyRestricted')
-        self.initalBalances = d.get('initialBalances', {})
-        self.currentBalances = d.get('currentBalances', {})
-        self.projectedBalances = d.get('projectedBalances', {})
-        self.positions = d.get('positions', {})
-        self.orderStrategies = d.get('orderStrategies', {})
+    def update(self, response):
+
+        response = response['securitiesAccount']
+
+        if response.get('positions', None) is not None:
+            positions = response.pop('positions', None)
+            self.positions.parse(positions)
+
+        self.__dict__.update(response)
     
-    def account_overview(self):
-        """
-        prints all account details into console including account id, type,
-        current balances, and opened positions. 
-        """
-        print(f"ACCOUNT ID: {self.account_id}")
-        print(f"ACCOUNT TYPE: {self.type}")
 
+class Positions(dict):
+    """
+    """
+    def __init__(self):
+        pass
 
-        print('\nINITAL BALANCES:')
-        self.print_dict(self.initalBalances, prefix=' '*4)
-
-
-        print('\nCURRENT BALANCES:')
-        self.print_dict(self.currentBalances, prefix=' '*4)
-
-
-        print('\nOPENED POSITIONS:')
-        for i, position in enumerate(self.positions):
-            print(f"\n    POSITION {i}:")
-            self.print_dict(position['instrument'], prefix=' '*8)
-            self.print_dict(position, prefix=' '*12, ignore=['instrument'])
-
-    @staticmethod
-    def convert_case(s):
+    def parse(self, positions):
         """
         """
-        return ' '.join(re.sub('([A-Z][a-z]+)', r' \1', re.sub('([A-Z]+)', r' \1', s)).split()).capitalize()
+        symbols = [position['instrument']['symbol'] for position in positions]
 
-    def print_dict(self, d, prefix='', ignore=[]):
+        for symbol in self.keys():
+            if symbol not in symbols:
+                self.pop(symbol)
+
+        for i, symbol in enumerate(symbols):
+            self[symbol] = Position(positions[i])
+
+
+class Position:
+    """
+    """
+    def __init__(self, position):
+
+        instrument = position['instrument']
+
+        self.assetType = instrument.get('assetType', None)
+        self.cusip = instrument.get('cusip', None)
+        self.symbol = instrument.get('symbol', None)
+        self.description = instrument.get('description', None)
+        self.putCall = instrument.get('putCall', None)
+        self.underlyingSymbol = instrument.get('underlyingSymbol', None)
+        
+        self.shortQuantity = position.get('shortQuantity', None)
+        self.averagePrice = position.get('averagePrice', None)
+        self.currentDayCost = position.get('currentDayCost', None)
+        self.currentDayProfitLoss = position.get('currentDayProfitLoss ', None)
+        self.currentDayProfitLossPercentage = position.get('currentDayProfitLossPercentage', None)
+        self.longQuantity = position.get('longQuantity', None)
+        self.settledLongQuantity = position.get('settledLongQuantity', None)
+        self.settledShortQuantity = position.get('settledShortQuantity', None)
+        self.marketValue = position.get('marketValue', None)
+        self.maintenanceRequirement = position.get('maintenanceRequirement', None)
+        self.previousSessionLongQuantity = position.get('previousSessionLongQuantity', None)
+
+    def form_close_order(self):
         """
+        Form order object that will close this position
         """
-        for kv in d.keys():
-            if kv not in ignore:
-                print(f"{prefix}{self.convert_case(kv)}: {d[kv]}")
+        return
+
+    def form_add_order(self, quantity):
+        """
+        Form order object that will add the given quantity to the position
+        """
+        return
+
     
+
+        

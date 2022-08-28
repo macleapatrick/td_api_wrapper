@@ -1,10 +1,11 @@
 from requests_oauthlib import OAuth2Session
+from datetime import datetime, timedelta
 from time import sleep
 
 import pickle
 
 import account
-import endpoints
+from enumerations import Endpoints
 import orders
 
 from exceptions import NotAuthorized
@@ -21,12 +22,11 @@ class TDAClient(OAuth2Session):
 
         super().__init__(client_id, **kwargs)
         
-        self.endpoints = endpoints.Endpoints()
         self.account = account.Account()
-        self.history = orders.OrderHistory()
+        self.orders = orders.OrderHistory()
 
         self.redirect_uri = redirect_uri
-        self.auto_refresh_url = self.endpoints['token']
+        self.auto_refresh_url = Endpoints.TOKEN.value
         self.auto_refresh_kwargs = {'client_id': self._client.client_id}
 
     def login(self, webbrowser):
@@ -40,15 +40,12 @@ class TDAClient(OAuth2Session):
             returns:
                 boolean indicating login success/failure
         """
-        #if not isinstance(webbrowser, webdriver):
-            #raise TypeError("login session not provided with type 'webdriver'")
-
-        authorization_url, _ = self.authorization_url(self.endpoints['auth'])
+        authorization_url, _ = self.authorization_url(Endpoints.AUTH.value)
 
         webbrowser.get(authorization_url)
 
         # wait for redirect
-        while self.endpoints['auth'][:28] in webbrowser.current_url:
+        while Endpoints.AUTH.value[:28] in webbrowser.current_url:
             sleep(.1)
 
         # check if proper redirect
@@ -57,7 +54,7 @@ class TDAClient(OAuth2Session):
 
         # fetch tokens
         self.fetch_token(
-                self.endpoints['token'],
+                Endpoints.TOKEN.value,
                 authorization_response=webbrowser.current_url,
                 include_client_id=True,
                 access_type='offline'
@@ -85,20 +82,57 @@ class TDAClient(OAuth2Session):
         with open("tokens", 'wb') as f:
             pickle.dump(self.token, f)
 
+    def transactionCheck(self):
+        """
+        Check if the program can procede with the transacton
+            Check if we have an access code 
+            Check if the default account is set
+        """
+        self.is_authorized()
+        self.is_account_set()
+
+    def refresh_token(self, **kwargs):
+        """
+        Refresh token if expired
+        """
+        if datetime.now().timestamp() > self.token['expires_at']:
+
+            super().refresh_token(
+                Endpoints.TOKEN.value, 
+                self.token['refresh_token'],
+                client_id=self._client.client_id,
+                **kwargs
+            )
+
     def is_authorized(self):
         """
         Raise exception is session is not authorized
         """
         if not self.authorized:
             raise NotAuthorized("Session not authorized")
+        else:
+            return 1
+
+    def is_account_set(self):
+        """
+        Raise exception if there is not account defined
+        """
+        if not self.account.account_id:
+            raise ValueError("Client account id not set")
+        else:
+            return 1 
 
     def get_accounts(self, params={}):
         """
         returns all accounts associated with the given login
         """
-        self.is_authorized()
+        self.transactionCheck()
+        self.refresh_token()
 
-        r = self.get(self.endpoints['accounts'], params=params)
+        r = self.get(
+                Endpoints.ACCOUNTS.value, 
+                params=params
+            )
 
         if r.status_code == 200:
             return (1, r)
@@ -110,114 +144,151 @@ class TDAClient(OAuth2Session):
         gets the account specified in the accountId input
 
             args:
-                accountId - account to get from td ameritrade
-                params - query parameters for returning more information
+                accountId (type: int)
+                    account to get from td ameritrade
+                params (type: dict)
+                    query parameters for returning more information
                     ex: fields=positions,orders 
                     returns information for positions and orders, if not 
                     supplied only information for account balances is
                     returned
         """
-        self.is_authorized()
+        self.transactionCheck()
+        self.refresh_token()
 
-        # get account information
-        r = self.get(self.endpoints['account'].format(accountId=accountId), params=params)
+        r = self.get(
+                Endpoints.ACCOUNT.value.format(accountId=accountId), 
+                params=params
+            )
 
         if r.status_code == 200:
             return (1, r)
         else:
             return (0, None)
 
-    def refresh_account(self):
+    def refresh_account(self, options=['positions'], params={}):
         """
         Refresh the account status
         """
-        self.is_authorized()
+        self.transactionCheck()
+        self.refresh_token()
 
         if not self.account.account_id:
             raise ValueError("account_id not defined")
 
-        # get account information    
-        status, r = self.get_account(accountId=self.account.account_id, params={'fields':'positions,orders'})
+        params['fields'] = ','.join(options)
 
-        # pass to account instance and then return 
-        if status:
-            self.account.parse_response(r.json())
-            return (1, r)
-        else:
-            return (0, r)
-
-    def refresh_orders(self):
-        """
-        Refreshes status of the orders
-        """
-        self.is_authorized()
-
-        # get all orders
-        status, r = self.all_orders()
+        status, r = self.get_account(
+                accountId=self.account.account_id, 
+                params=params
+            )
 
         if status:
-            for order in r.json():
-                if self.history[order['orderId']]:
-                    self.history[order['orderId']].update(order)
+            self.account.update(r.json())
             return 1
         else:
             return 0
 
+    def refresh_orders(self):
+        """
+        Refreshes status of the orders and stores
+        results in the self.orders class
+        """
+        self.transactionCheck()
+        self.refresh_token()
+
+        status, r = self.all_orders()
+
+        if status:
+            d = {}
+            for order in r.json():
+                d[int(order['orderId'])] = order
+
+            self.orders.update(d)
+            return 1
+        else:
+            return 0
 
     def place_order(self, order):
         """
         Place an order through TD ameritrade
 
             args: 
-                order (type: Order) Takes instances of any subclasse of order (Equity, Option, etc)
+                order (type: Order) 
+                    Takes instances of any subclasse of order (Equity, Option, etc)
 
             returns:
-                Tuple in the form of (Status, Response)
-                    Where:
-                        Status - Boolean indicating successful post transaction
-                        Response - full response from request
+                Tuple in the form of (Status, Response, orderId)
+                    Status (type: bool) 
+                        indicating successful post transaction
+                    Response (type: response) 
+                        full response from request
+                    OrderId (type: int)
+                        orderId of posted transaction
         """
-        self.is_authorized()
+        self.transactionCheck()
+        self.refresh_token()
 
         if not issubclass(type(order), orders.Order):
             raise TypeError("Given order not subclass of type Order")
 
-        # Post order to TDA
-        r = self.post(self.endpoints['place_order'].format(accountId=self.account.account_id), json=order.form())
+        r = self.post(
+                Endpoints.PLACE_ORDER.value.format(
+                    accountId=self.account.account_id), 
+                json=order.form()
+            )
 
         if r.status_code == 201:
-            order.orderId = int(r.headers.get('Location').split('/')[-1])
-
-            self.history.append(order)
-
-            return (1, r)
+            orderId = int(r.headers.get('Location').split('/')[-1])
+            return (1, r, orderId)
         else:
-            return (0, r)
+            return (0, r, None)
 
-    def cancel_order(self, orderId):
+    def cancel_order(
+        self, 
+        orderId, 
+        checkCancelable=True
+    ):
         """
         Cancels previously placed order
 
             args:
-                orderId (type: str) orderId for order to cancel
+                orderId (type: int) 
+                    orderId for order to cancel
+                checkCancelable (type: bool)
+                    check order log and see if order is cancelable
 
             returns:
-                Boolean of whether transaction was successful
- 
-            TO-DO: ADD LOGGERS AND ORDER HISTORY CLASS
-            ALSO What happens when order already went through? Test out
+                Tuple in the form of (status, response)
+                    status (type: bool) 
+                        indicating successful transaction
+                    response (type: response) 
+                        full response from requests or None if order is not cancelable
         """
-        self.is_authorized()
+        self.transactionCheck()
+        self.refresh_token()
 
-        # Delete order from TDA
-        r = self.delete(self.endpoints['cancel_order'].format(accountId=self.account.account_id,orderId=orderId))
+        if checkCancelable and not self.orders.get(orderId, {}).get('cancelable',''):
+            return (0, None)
+
+        r = self.delete(
+                Endpoints.CANCLE_ORDER.value.format(
+                    accountId=self.account.account_id,
+                    orderId=orderId)
+            )
 
         if r.status_code == 200:
-            return 1
+            return (1, r)
         else:
-            return 0
+            return (0, r)
 
-    def all_orders(self, **kwargs):
+    def all_orders(
+        self,
+        maxResults=None,
+        fromEnteredTime=None,
+        toEnteredTime=None,
+        status=None
+    ):
         """
         Retrieves all order from account filter by the kwargs
 
@@ -227,57 +298,98 @@ class TDAClient(OAuth2Session):
                 toEnteredTime - End of orders to retrieve (yyyy-MM-dd)
                 status - Specific that only orders of this status should be returned
         """ 
-        self.is_authorized()
+        self.transactionCheck()
+        self.refresh_token()
 
-        if kwargs:
-            params = kwargs
-        else:
-            params = {}
+        params = {}
 
-        r = self.get(self.endpoints['all_orders'].format(accountId=self.account.account_id),params=params)
+        if maxResults: params['maxResults'] = maxResults
+        if fromEnteredTime: params['fromEnteredTime'] = fromEnteredTime
+        if toEnteredTime: params['toEnteredTime'] = toEnteredTime
+        if status: params['status'] = status
+
+        r = self.get(
+            Endpoints.ALL_ORDERS.value.format(
+                accountId=self.account.account_id),
+            params=params
+        )
         
         if r.status_code == 200:
             return (1, r)
         else:
             return (0, r)
 
-    def get_order(self, orderId):
+    def get_order(
+        self, 
+        orderId
+    ):
         """
         Get order information for a specific order
 
             args:
-                orderId (type: str) orderId for order to get information for
-        """
-        self.is_authorized()
+                orderId (type: str) 
+                    orderId for order to get information for
 
-        r = self.get(self.endpoints['get_order'].format(accountId=self.account.account_id,orderId=orderId))
+            return:
+                Tuple in the form of (Status, Response)
+                    Status (type: bool) 
+                        indicating successful get transaction
+                    Response (type: response) 
+                        full response from request
+        """
+        self.transactionCheck()
+        self.refresh_token()
+
+        r = self.get(
+            Endpoints.GET_ORDER.value.format(
+                accountId=self.account.account_id,
+                orderId=orderId)
+        )
 
         if r.status_code == 200:
-            return (1, r.json())
+            return (1, r)
         else:
-            return (0, r.json())
+            return (0, r)
     
-    def replace_order(self, order):
+    def replace_order(
+        self, 
+        orderId, 
+        order, 
+        checkEditable=True
+    ):
         """
         Replace an existing order through td ameritrade
 
             args: 
-                order (type: Order) Takes instances of any subclasse of order (Equity, Option, etc)
-
+                orderId (type: int)
+                    The order Id of the order to replace
+                order (type: Order) 
+                    Takes instances of any subclasse of order (Equity, Option, etc)
+                checkEditable (type: Bool)
+                    Check orders to see if this order can be edited. Note this
+                    will only check stored orders and won't refresh orders
             returns:
                 Tuple in the form of (Status, Response)
-                    Where:
-                        Status - Boolean indicating successful post transaction
-                        OrderId - Id of transaction if successful
-                        Response - full response from request
+                    Status (type: Bool)
+                        indicating successful put transaction
+                    Response (type: response)
+                        full response from request
         """
-        self.is_authorized()
+        self.transactionCheck()
+        self.refresh_token()
 
         if not issubclass(type(order), orders.Order):
             raise TypeError("Given order not subclass of type Order")
 
-        # Post order to TDA
-        r = self.post(self.endpoints['place_order'].format(accountId=self.account.account_id), json=order.form())
+        if checkEditable and not self.orders.get(orderId, {}).get('editable',''):
+            return (0, None)
+
+        r = self.put(
+                Endpoints.REPLACE_ORDER.value.format(
+                    accountId=self.account.account_id,
+                    orderId=orderId), 
+                json=order.form()
+            )
 
         if r.status_code == 201:
             orderId = r.headers.get('Location').split('/')[-1]
@@ -285,25 +397,158 @@ class TDAClient(OAuth2Session):
         else:
             return (0, None, r)
 
-    def instruments(self, symbol, projection='symbol-search'):
+    def instruments(
+        self, 
+        symbol, 
+        projection='symbol-search'
+    ):
         """
-        """
-        pass
+        Returns information associated with symbol
 
-    def market_hours(self, market):
-        """
-        """
-        pass
+        args:
+            symbol (type: str)
+                symbol to search for
+            projection (type: str) - Optional
+                type of search
+                valid entries:
+                    'symbol-search'
+                    'symbol-regex'
+                    'desc-search'
+                    'desc-regex',
+                    'fundamental'
+        returns:
+              Tuple in the form of (Status, Response)
+                    Status (type: bool) 
+                        indicating successful get transaction
+                    Response (type: response)
+                        full response from request
 
-    def movers(self, market):
         """
-        """
-        pass
+        self.transactionCheck()
+        self.refresh_token()
+        
+        params = {}
+        params['symbol'] = symbol
+        params['projection'] = projection
 
-    def options(self):
+        r = self.get(
+            Endpoints.INSTRUMENTS.value,
+            params=params
+        )
+
+        if r.status_code == 200:
+            return (1, r)
+        else:
+            return (0, r)
+
+    def markets_hours(
+        self, 
+        markets=['EQUITY','OPTION'],
+        date=datetime.now().strftime("%Y-%m-%d'T'%H:%M:%SZ")
+    ):
+        """
+        Returns market hours for given markets
+
+        args:
+            markets (type: list)
+                List of markets to include in response
+                can be (EQUITY, OPTION, FUTURE, BOND, or FOREX)
+            date (type: str)
+                date to retrieve market hours for in the form of 
+                yyyy-MM-dd or yyyy-MM-dd'T'HH:mm:ssz
+
+        returns:
+            Tuple in the form of (Status, Response)
+                Status (type: bool) 
+                    indicating successful get transaction
+                Response (type: response)
+                    full response from request
+        """
+        self.transactionCheck()
+        self.refresh_token()
+
+        params = {}
+        params['markets'] = ','.join(markets)
+        params['date'] = date
+
+        r = self.get(
+            Endpoints.MARKETS_HOURS.value, 
+            params=params
+        )
+
+        if r.status_code == 200:
+            return (1, r)
+        else:
+            return (0, r)
+
+    def movers(
+        self, 
+        index,
+        direction='up',
+        change='percent'
+    ):
         """
         """
-        pass
+        self.transactionCheck()
+        self.refresh_token()
+
+        params = {}
+        params['direction'] = direction
+        params[change] = change
+
+        r = self.get(
+            Endpoints.MOVERS.value.format(index=index),
+            params=params
+        )
+
+        if r.status_code == 200:
+            return (1, r)
+        else:
+            return (0, r)
+
+    def options(
+        self,
+        symbol,
+        contractType='ALL',
+        strikeCount='10',
+        includeQuotes='TRUE',
+        stategy='SINGLE',
+        range='ALL',
+        days=10,
+        fromDate='',
+        toDate='',
+        expMonth='ALL',
+        optionType='ALL',
+    ):
+        """
+        """
+        self.transactionCheck()
+        self.refresh_token()
+
+        if not fromDate: fromDate=datetime.now().date,
+        if not toDate: toDate=(datetime.now()+timedelta(days=days)).date,
+
+        params = {}
+        params['symbol'] = symbol
+        params['contractType'] = contractType
+        params['strikeCount'] = strikeCount
+        params['includeQuotes'] = includeQuotes
+        params['stategy'] = stategy
+        params['range'] = range
+        params['fromDate'] = fromDate
+        params['toDate'] = toDate
+        params['expMonth'] = expMonth
+        params['optionType'] = optionType
+
+        r = self.get(
+            Endpoints.OPTIONS.value,
+            params=params
+        )
+
+        if r.status_code == 200:
+            return (1, r)
+        else:
+            return (0, r)
 
     def price_history(self):
         """
