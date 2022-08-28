@@ -5,9 +5,9 @@ from time import sleep
 import pickle
 
 import account
-from enumerations import Endpoints
 import orders
 
+from enumerations import Endpoints
 from exceptions import NotAuthorized
 
 class TDAClient(OAuth2Session):
@@ -525,8 +525,8 @@ class TDAClient(OAuth2Session):
         self.transactionCheck()
         self.refresh_token()
 
-        if not fromDate: fromDate=datetime.now().date,
-        if not toDate: toDate=(datetime.now()+timedelta(days=days)).date,
+        if not fromDate: fromDate= str(datetime.now().date()),
+        if not toDate: toDate= str((datetime.now()+timedelta(days=days)).date()),
 
         params = {}
         params['symbol'] = symbol
