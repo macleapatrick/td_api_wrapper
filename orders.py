@@ -1,14 +1,22 @@
 from exceptions import InvalidOrder
-import re
+
 
 class OrderHistory(dict):
     """
     """
     def __init__(self):
         super().__init__(self)
-                
 
-class Order():
+
+class RecievedOrder:
+    """
+    Data Container for order infomation recieved from TDA
+    """
+    def __init__(self):
+        pass
+
+
+class Order:
     """
     """
     def __init__(

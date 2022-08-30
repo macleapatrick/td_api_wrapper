@@ -1,4 +1,4 @@
-import re
+
 
 class Account:
     """
@@ -61,27 +61,11 @@ class Position:
     """
     def __init__(self, position):
 
-        instrument = position['instrument']
+        instrument = position.pop('instrument')
 
-        self.assetType = instrument.get('assetType', None)
-        self.cusip = instrument.get('cusip', None)
-        self.symbol = instrument.get('symbol', None)
-        self.description = instrument.get('description', None)
-        self.putCall = instrument.get('putCall', None)
-        self.underlyingSymbol = instrument.get('underlyingSymbol', None)
+        self.__dict__.update({kw : position[kw] for kw in position.keys()})
+        self.__dict__.update({kw : instrument[kw] for kw in instrument.keys()})
         
-        self.shortQuantity = position.get('shortQuantity', None)
-        self.averagePrice = position.get('averagePrice', None)
-        self.currentDayCost = position.get('currentDayCost', None)
-        self.currentDayProfitLoss = position.get('currentDayProfitLoss ', None)
-        self.currentDayProfitLossPercentage = position.get('currentDayProfitLossPercentage', None)
-        self.longQuantity = position.get('longQuantity', None)
-        self.settledLongQuantity = position.get('settledLongQuantity', None)
-        self.settledShortQuantity = position.get('settledShortQuantity', None)
-        self.marketValue = position.get('marketValue', None)
-        self.maintenanceRequirement = position.get('maintenanceRequirement', None)
-        self.previousSessionLongQuantity = position.get('previousSessionLongQuantity', None)
-
     def form_close_order(self):
         """
         Form order object that will close this position

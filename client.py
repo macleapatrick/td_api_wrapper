@@ -4,8 +4,8 @@ from time import sleep
 
 import pickle
 
-import account
-import orders
+from account import Account
+from orders import Order, OrderHistory
 
 from enumerations import Endpoints
 from exceptions import NotAuthorized
@@ -22,12 +22,10 @@ class TDAClient(OAuth2Session):
 
         super().__init__(client_id, **kwargs)
         
-        self.account = account.Account()
-        self.orders = orders.OrderHistory()
+        self.account = Account()
+        self.orders = OrderHistory()
 
         self.redirect_uri = redirect_uri
-        self.auto_refresh_url = Endpoints.TOKEN.value
-        self.auto_refresh_kwargs = {'client_id': self._client.client_id}
 
     def login(self, webbrowser):
         """
@@ -106,7 +104,7 @@ class TDAClient(OAuth2Session):
 
     def is_authorized(self):
         """
-        Raise exception is session is not authorized
+        Raise exception is session does not have access code
         """
         if not self.authorized:
             raise NotAuthorized("Session not authorized")
@@ -115,14 +113,17 @@ class TDAClient(OAuth2Session):
 
     def is_account_set(self):
         """
-        Raise exception if there is not account defined
+        Raise exception if there is not account id defined
         """
         if not self.account.account_id:
             raise ValueError("Client account id not set")
         else:
             return 1 
 
-    def get_accounts(self, params={}):
+    def get_accounts(
+        self, 
+        params={}
+    ):
         """
         returns all accounts associated with the given login
         """
@@ -139,7 +140,11 @@ class TDAClient(OAuth2Session):
         else:
             return (0, r)
 
-    def get_account(self, accountId, params={}):
+    def get_account(
+        self, 
+        accountId, 
+        params={}
+    ):
         """
         gets the account specified in the accountId input
 
@@ -166,7 +171,11 @@ class TDAClient(OAuth2Session):
         else:
             return (0, None)
 
-    def refresh_account(self, options=['positions'], params={}):
+    def refresh_account(
+        self, 
+        options=['positions'], 
+        params={}
+    ):
         """
         Refresh the account status
         """
@@ -229,7 +238,7 @@ class TDAClient(OAuth2Session):
         self.transactionCheck()
         self.refresh_token()
 
-        if not issubclass(type(order), orders.Order):
+        if not issubclass(type(order), Order):
             raise TypeError("Given order not subclass of type Order")
 
         r = self.post(
@@ -284,10 +293,7 @@ class TDAClient(OAuth2Session):
 
     def all_orders(
         self,
-        maxResults=None,
-        fromEnteredTime=None,
-        toEnteredTime=None,
-        status=None
+        **kwargs
     ):
         """
         Retrieves all order from account filter by the kwargs
@@ -301,17 +307,10 @@ class TDAClient(OAuth2Session):
         self.transactionCheck()
         self.refresh_token()
 
-        params = {}
-
-        if maxResults: params['maxResults'] = maxResults
-        if fromEnteredTime: params['fromEnteredTime'] = fromEnteredTime
-        if toEnteredTime: params['toEnteredTime'] = toEnteredTime
-        if status: params['status'] = status
-
         r = self.get(
             Endpoints.ALL_ORDERS.value.format(
                 accountId=self.account.account_id),
-            params=params
+            params=kwargs
         )
         
         if r.status_code == 200:
@@ -378,7 +377,7 @@ class TDAClient(OAuth2Session):
         self.transactionCheck()
         self.refresh_token()
 
-        if not issubclass(type(order), orders.Order):
+        if not issubclass(type(order), Order):
             raise TypeError("Given order not subclass of type Order")
 
         if checkEditable and not self.orders.get(orderId, {}).get('editable',''):
@@ -427,9 +426,8 @@ class TDAClient(OAuth2Session):
         self.transactionCheck()
         self.refresh_token()
         
-        params = {}
-        params['symbol'] = symbol
-        params['projection'] = projection
+        local = locals()
+        params = {kw : local.get(kw) for kw in ['symbol','projection']}
 
         r = self.get(
             Endpoints.INSTRUMENTS.value,
@@ -492,9 +490,8 @@ class TDAClient(OAuth2Session):
         self.transactionCheck()
         self.refresh_token()
 
-        params = {}
-        params['direction'] = direction
-        params[change] = change
+        local = locals()
+        params = {kw : local.get(kw) for kw in ['direction','change']}
 
         r = self.get(
             Endpoints.MOVERS.value.format(index=index),
@@ -528,17 +525,12 @@ class TDAClient(OAuth2Session):
         if not fromDate: fromDate= str(datetime.now().date()),
         if not toDate: toDate= str((datetime.now()+timedelta(days=days)).date()),
 
-        params = {}
-        params['symbol'] = symbol
-        params['contractType'] = contractType
-        params['strikeCount'] = strikeCount
-        params['includeQuotes'] = includeQuotes
-        params['stategy'] = stategy
-        params['range'] = range
-        params['fromDate'] = fromDate
-        params['toDate'] = toDate
-        params['expMonth'] = expMonth
-        params['optionType'] = optionType
+        kws = ['symbol','contractType','strikeCount','includeQuotes',
+               'stategy','range','days','fromDate','toDate','expMonth',
+               'optionType']
+
+        local = locals()
+        params = {kw : local.get(kw) for kw in kws if local.get(kw)}
 
         r = self.get(
             Endpoints.OPTIONS.value,
@@ -550,10 +542,37 @@ class TDAClient(OAuth2Session):
         else:
             return (0, r)
 
-    def price_history(self):
+    def price_history(
+        self, 
+        symbol,
+        periodType='day',
+        frequencyType='minute',
+        period=None,
+        frequency=1,
+        endDate=None,
+        startDate=None,
+        needExtendedHoursData=False
+    ):
         """
         """
-        pass
+        self.transactionCheck()
+        self.refresh_token()
+
+        kws = ['symbol','frequencyType','period','frequency',
+               'endDate','startDate','needExtendedHoursData']
+
+        local = locals()
+        params = {kw : local.get(kw) for kw in kws if local.get(kw) is not None}
+
+        r = self.get(
+            Endpoints.PRICE_HISTORY.value.format(symbol=symbol),
+            params = params
+        )
+
+        if r.status_code == 200:
+            return (1, r)
+        else:
+            return (0, r)
 
     def quote(self):
         """
