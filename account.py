@@ -1,4 +1,7 @@
+from dis import Instruction
+from orders import Equity, Option 
 
+from enumerations import Const
 
 class Account:
     """
@@ -53,7 +56,12 @@ class Positions(dict):
                 self.pop(symbol)
 
         for i, symbol in enumerate(symbols):
-            self[symbol] = Position(positions[i])
+
+            assetType = positions[i]['instrument']['assetType']
+            if assetType == 'EQUITY':
+                self[symbol] = EquityPosition(positions[i])
+            elif assetType == 'OPTION':
+                self[symbol] = OptionsPosition(positions[i])
 
 
 class Position:
@@ -67,17 +75,58 @@ class Position:
         self.__dict__.update({kw : instrument[kw] for kw in instrument.keys()})
         
     def form_close_order(self):
+        pass
+
+    def form_add_order(self):
+        return
+
+
+class EquityPosition(Position):
+    """
+    """
+    def __init__(self, position):
+        super().__init__(position)
+
+    def form_close_order(self, **kwargs):
         """
         Form order object that will close this position
         """
-        return
+        order = Equity(**kwargs)
+        order.add_leg(
+            symbol=self.symbol, 
+            quantity=self.closing(),
+            closing=True
+        )
+        return order
 
-    def form_add_order(self, quantity):
+    def form_add_order(self, percent, **kwargs):
         """
-        Form order object that will add the given quantity to the position
+        Form order object that will add to this position
         """
-        return
+        order = Equity(**kwargs)
+        order.add_leg(
+            symbol=self.symbol,
+            quantity=int(self.adding()*percent/100)
+        )
+        return order
 
-    
+    def closing(self):
+        if self.longQuantity:  
+            return -self.longQuantity
+        elif self.shortQuantity:
+            return self.shortQuantity
+
+    def adding(self):
+        if self.longQuantity:  
+            return self.longQuantity
+        elif self.shortQuantity:
+            return -self.shortQuantity
+
+
+class OptionsPosition(Position):
+    """
+    """
+    def __init__(self, position):
+        super().__init__(position)
 
         

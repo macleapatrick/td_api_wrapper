@@ -38,12 +38,12 @@ class TDAClient(OAuth2Session):
             returns:
                 boolean indicating login success/failure
         """
-        authorization_url, _ = self.authorization_url(Endpoints.AUTH.value)
+        authorization_url, _ = self.authorization_url(Endpoints.AUTH)
 
         webbrowser.get(authorization_url)
 
         # wait for redirect
-        while Endpoints.AUTH.value[:28] in webbrowser.current_url:
+        while Endpoints.AUTH[:28] in webbrowser.current_url:
             sleep(.1)
 
         # check if proper redirect
@@ -52,7 +52,7 @@ class TDAClient(OAuth2Session):
 
         # fetch tokens
         self.fetch_token(
-                Endpoints.TOKEN.value,
+                Endpoints.TOKEN,
                 authorization_response=webbrowser.current_url,
                 include_client_id=True,
                 access_type='offline'
@@ -96,7 +96,7 @@ class TDAClient(OAuth2Session):
         if datetime.now().timestamp() > self.token['expires_at']:
 
             super().refresh_token(
-                Endpoints.TOKEN.value, 
+                Endpoints.TOKEN, 
                 self.token['refresh_token'],
                 client_id=self._client.client_id,
                 **kwargs
@@ -131,7 +131,7 @@ class TDAClient(OAuth2Session):
         self.refresh_token()
 
         r = self.get(
-                Endpoints.ACCOUNTS.value, 
+                Endpoints.ACCOUNTS, 
                 params=params
             )
 
@@ -162,7 +162,7 @@ class TDAClient(OAuth2Session):
         self.refresh_token()
 
         r = self.get(
-                Endpoints.ACCOUNT.value.format(accountId=accountId), 
+                Endpoints.ACCOUNT.format(accountId=accountId), 
                 params=params
             )
 
@@ -242,7 +242,7 @@ class TDAClient(OAuth2Session):
             raise TypeError("Given order not subclass of type Order")
 
         r = self.post(
-                Endpoints.PLACE_ORDER.value.format(
+                Endpoints.PLACE_ORDER.format(
                     accountId=self.account.account_id), 
                 json=order.form()
             )
@@ -281,7 +281,7 @@ class TDAClient(OAuth2Session):
             return (0, None)
 
         r = self.delete(
-                Endpoints.CANCLE_ORDER.value.format(
+                Endpoints.CANCLE_ORDER.format(
                     accountId=self.account.account_id,
                     orderId=orderId)
             )
@@ -308,7 +308,7 @@ class TDAClient(OAuth2Session):
         self.refresh_token()
 
         r = self.get(
-            Endpoints.ALL_ORDERS.value.format(
+            Endpoints.ALL_ORDERS.format(
                 accountId=self.account.account_id),
             params=kwargs
         )
@@ -340,7 +340,7 @@ class TDAClient(OAuth2Session):
         self.refresh_token()
 
         r = self.get(
-            Endpoints.GET_ORDER.value.format(
+            Endpoints.GET_ORDER.format(
                 accountId=self.account.account_id,
                 orderId=orderId)
         )
@@ -384,7 +384,7 @@ class TDAClient(OAuth2Session):
             return (0, None)
 
         r = self.put(
-                Endpoints.REPLACE_ORDER.value.format(
+                Endpoints.REPLACE_ORDER.format(
                     accountId=self.account.account_id,
                     orderId=orderId), 
                 json=order.form()
@@ -430,7 +430,7 @@ class TDAClient(OAuth2Session):
         params = {kw : local.get(kw) for kw in ['symbol','projection']}
 
         r = self.get(
-            Endpoints.INSTRUMENTS.value,
+            Endpoints.INSTRUMENTS,
             params=params
         )
 
@@ -470,7 +470,7 @@ class TDAClient(OAuth2Session):
         params['date'] = date
 
         r = self.get(
-            Endpoints.MARKETS_HOURS.value, 
+            Endpoints.MARKETS_HOURS, 
             params=params
         )
 
@@ -494,7 +494,7 @@ class TDAClient(OAuth2Session):
         params = {kw : local.get(kw) for kw in ['direction','change']}
 
         r = self.get(
-            Endpoints.MOVERS.value.format(index=index),
+            Endpoints.MOVERS.format(index=index),
             params=params
         )
 
@@ -533,7 +533,7 @@ class TDAClient(OAuth2Session):
         params = {kw : local.get(kw) for kw in kws if local.get(kw)}
 
         r = self.get(
-            Endpoints.OPTIONS.value,
+            Endpoints.OPTIONS,
             params=params
         )
 
@@ -565,7 +565,7 @@ class TDAClient(OAuth2Session):
         params = {kw : local.get(kw) for kw in kws if local.get(kw) is not None}
 
         r = self.get(
-            Endpoints.PRICE_HISTORY.value.format(symbol=symbol),
+            Endpoints.PRICE_HISTORY.format(symbol=symbol),
             params = params
         )
 
