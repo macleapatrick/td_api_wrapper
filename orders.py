@@ -3,17 +3,47 @@ from enumerations import Const
 
 class OrderHistory(dict):
     """
+    subclass of dict to store the previously made orders on the account.
+    class is nested under tda client class
+
+    each item in dict is an instance of the RecievedOrder class that 
+    stores the information for a given order
     """
     def __init__(self):
         super().__init__(self)
+
+    def __repr__(self):
+        return f"<Class: '{self.__class__.__name__}', Number Of Orders: '{len(self)}'>"
+
+    def update(self, orders):
+        """
+        """
+        for d in orders:
+            orderId = d['orderId']
+            if orderId in self:
+                self[orderId].update(d)
+            else:
+                self[orderId] = RecievedOrder(d)
 
 
 class RecievedOrder:
     """
     Data Container for order infomation recieved from TDA
     """
-    def __init__(self):
-        pass
+    def __init__(self, d):
+        self.update(d)
+
+    def __repr__(self):
+        return f"<Class: '{self.__class__.__name__}', Status: '{self.status}'>"
+
+    def update(self, d):
+        self.__dict__.update(d)
+
+    def get(self, attr, fail):
+        if attr in self.__dict__:
+            return self.__dict__[attr]
+        else:
+            return fail
 
 
 class Order:
@@ -56,6 +86,16 @@ class Order:
         """
         Changes the order to a stop order
         """
+        self.orderType = Const.OrderType.STOP
+        self.stopPrice = price
+        
+    def set_stop_limit(self, limitPrice, stopPrice):
+        """
+        Changes the order to a stop limit order
+        """
+        self.orderType = Const.OrderType.STOP_LIMIT
+        self.stopPrice = stopPrice
+        self.price = limitPrice
 
     def set_duration(self, gtc=False, fof=False):
         """
@@ -67,7 +107,7 @@ class Order:
         elif fof:
             self.duration = Const.Duration.FILL_OR_KILL
 
-    def session(self, am=False, pm= False, seamless=False):
+    def set_session(self, am=False, pm= False, seamless=False):
         """
         Sets the session of the order. Only needed if not
         use the default 'NORMAL'
@@ -85,6 +125,8 @@ class Order:
 
 class Equity(Order):
     """
+    Subclass of Order class used to create orders that are fed to the 
+    tda client class.  Used for equity orders
     """
     def __init__(self, **kwargs):
         """
@@ -92,7 +134,6 @@ class Equity(Order):
         super().__init__()
 
         self.__dict__.update(kwargs)
-
 
     def add_leg(self, symbol, quantity, closing=False):
         """
@@ -104,8 +145,7 @@ class Equity(Order):
                 quantity (type: int)
                     quantity for transaction (negative to sell short position)
                 closing (type: bool)
-                    specify if this is a order to close position
-
+                    is the order closing an existing trade
         """
         if closing:
             if quantity > 0:
@@ -136,6 +176,8 @@ class Equity(Order):
 
 class Option(Order):
     """
+    Subclass of Order class used to create orders that are fed to the 
+    tda client class.  Used for options orders
     """
     def __init__(
         self, 
@@ -158,7 +200,8 @@ class Option(Order):
                     symbol code of option to trade
                 quantity (type: int)
                     quantity for transaction (negative to sell short position)
-
+                closing (type: bool)
+                    is the order closing an existing trade
         """
         if closing:
             if quantity > 0:

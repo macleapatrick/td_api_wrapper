@@ -209,11 +209,7 @@ class TDAClient(OAuth2Session):
         status, r = self.all_orders()
 
         if status:
-            d = {}
-            for order in r.json():
-                d[int(order['orderId'])] = order
-
-            self.orders.update(d)
+            self.orders.update(r.json())
             return 1
         else:
             return 0
@@ -277,7 +273,7 @@ class TDAClient(OAuth2Session):
         self.transactionCheck()
         self.refresh_token()
 
-        if checkCancelable and not self.orders.get(orderId, {}).get('cancelable',''):
+        if checkCancelable and not self.orders.get(orderId, {}).get('cancelable', ''):
             return (0, None)
 
         r = self.delete(
@@ -509,7 +505,7 @@ class TDAClient(OAuth2Session):
         contractType='ALL',
         strikeCount='10',
         includeQuotes='TRUE',
-        stategy='SINGLE',
+        strategy='SINGLE',
         range='ALL',
         days=10,
         fromDate='',
@@ -526,7 +522,7 @@ class TDAClient(OAuth2Session):
         if not toDate: toDate= str((datetime.now()+timedelta(days=days)).date()),
 
         kws = ['symbol','contractType','strikeCount','includeQuotes',
-               'stategy','range','days','fromDate','toDate','expMonth',
+               'strategy','range','days','fromDate','toDate','expMonth',
                'optionType']
 
         local = locals()

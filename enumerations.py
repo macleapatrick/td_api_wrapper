@@ -1,6 +1,5 @@
 
 
-
 class Endpoints:
     """
     Container class to store API endpoints used by class TDClient
@@ -78,6 +77,22 @@ class Duration:
     FILL_OR_KILL        = 'FILL_OR_KILL'
 
 
+class ComplexOrderType:
+    NONE                = 'NONE'
+    COVERED             = 'COVERED'
+    VERTICAL            = 'VERTICAL'
+    BACK_RATIO          = 'BACK_RATIO'
+    CALENDAR            = 'CALENDAR'
+    DIAGONAL            = 'DIAGONAL'
+    STRADDLE            = 'STRADDLE'
+    STRANGLE            = 'STRANGLE'
+    COLLAR_SYNTHETIC    = 'COLLAR_SYNTHETIC'
+    BUTTERYFLY          = 'BUTTERFLY'
+    CONDOR              = 'CONDOR'
+    IRON_CONDOR         = 'IRON_CONDOR'
+    CUSTOM              = 'CUSTOM'
+
+
 class Const:
     """
     Genertic constant data container used throughout the module
@@ -87,3 +102,4 @@ class Const:
     OrderStrategyType   = OrderStrategyType()
     Session             = Session()
     Duration            = Duration()
+    ComplexOrderType    = ComplexOrderType()
