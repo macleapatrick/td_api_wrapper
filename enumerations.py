@@ -25,6 +25,8 @@ class Endpoints:
     OPTIONS             =  API_BASE + "marketdata/chains"
     PRICE_HISTORY       =  API_BASE + "marketdata/{symbol}/pricehistory"
     QUOTE               =  API_BASE + "marketdata/{symbol}/quotes"
+    QUOTES              =  API_BASE + "marketdata/quotes"
+    USER_PRINCIPALS     =  API_BASE + "userprincipals"
 
 
 class Index:
