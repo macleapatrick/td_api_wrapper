@@ -6,7 +6,6 @@ import pickle
 
 from account import Account
 from orders import Order, OrderHistory
-
 from enumerations import Endpoints
 from exceptions import NotAuthorized
 
@@ -31,7 +30,6 @@ class TDAClient(OAuth2Session):
         """
         Direct the user to login on on td ameritrade and retrieve authorization code.  
         Use authorization code to fetch first set of access/refresh Oauth2 tokens
-
             args:
                 webbrowser (type: webdriver) selenium module webdriver class for 
                             browsing session to allow user to login
@@ -217,19 +215,13 @@ class TDAClient(OAuth2Session):
     def place_order(self, order):
         """
         Place an order through TD ameritrade
-
             args: 
-                order (type: Order) 
-                    Takes instances of any subclasse of order (Equity, Option, etc)
-
+                order - Takes instances of any subclasse of order (Equity, Option, etc)
             returns:
                 Tuple in the form of (Status, Response, orderId)
-                    Status (type: bool) 
-                        indicating successful post transaction
-                    Response (type: response) 
-                        full response from request
-                    OrderId (type: int)
-                        orderId of posted transaction
+                    Status - indicating successful post transaction
+                    Response - full response from request
+                    OrderId - orderId of posted transaction
         """
         self.transactionCheck()
         self.refresh_token()
@@ -256,19 +248,13 @@ class TDAClient(OAuth2Session):
     ):
         """
         Cancels previously placed order
-
             args:
-                orderId (type: int) 
-                    orderId for order to cancel
-                checkCancelable (type: bool)
-                    check order log and see if order is cancelable
-
+                orderId - orderId for order to cancel
+                checkCancelable - check order log and see if order is cancelable
             returns:
                 Tuple in the form of (status, response)
-                    status (type: bool) 
-                        indicating successful transaction
-                    response (type: response) 
-                        full response from requests or None if order is not cancelable
+                    status - indicating successful transaction
+                    response - full response from requests or None if order is not cancelable
         """
         self.transactionCheck()
         self.refresh_token()
@@ -293,7 +279,6 @@ class TDAClient(OAuth2Session):
     ):
         """
         Retrieves all order from account filter by the kwargs
-
             kwargs:
                 maxResults - The max number of orders to retireve
                 fromEnteredTime - Start of orders to retrieve (yyyy-MM-dd)
@@ -320,17 +305,12 @@ class TDAClient(OAuth2Session):
     ):
         """
         Get order information for a specific order
-
             args:
-                orderId (type: str) 
-                    orderId for order to get information for
-
+                orderId - orderId for order to get information for
             return:
                 Tuple in the form of (Status, Response)
-                    Status (type: bool) 
-                        indicating successful get transaction
-                    Response (type: response) 
-                        full response from request
+                    Status - indicating successful get transaction
+                    Response - full response from request
         """
         self.transactionCheck()
         self.refresh_token()
@@ -444,19 +424,15 @@ class TDAClient(OAuth2Session):
         Returns market hours for given markets
 
         args:
-            markets (type: list)
-                List of markets to include in response
-                can be (EQUITY, OPTION, FUTURE, BOND, or FOREX)
-            date (type: str)
-                date to retrieve market hours for in the form of 
-                yyyy-MM-dd or yyyy-MM-dd'T'HH:mm:ssz
+            markets - List of markets to include in response
+                      can be (EQUITY, OPTION, FUTURE, BOND, or FOREX)
+            date - date to retrieve market hours for in the form of 
+                   yyyy-MM-dd or yyyy-MM-dd'T'HH:mm:ssz
 
         returns:
             Tuple in the form of (Status, Response)
-                Status (type: bool) 
-                    indicating successful get transaction
-                Response (type: response)
-                    full response from request
+                Status - indicating successful get transaction
+                Response - full response from request
         """
         self.transactionCheck()
         self.refresh_token()
@@ -570,19 +546,58 @@ class TDAClient(OAuth2Session):
         else:
             return (0, r)
 
-    def quote(self):
+    def quote(self, symbol):
         """
         """
-        pass
+        self.transactionCheck()
+        self.refresh_token()
 
-    def transaction(self):
-        """
-        """
-        pass
+        r = self.get(
+            Endpoints.QUOTE.format(symbol=symbol)
+        )
 
-    def transactions(self):
+        if r.status_code == 200:
+            return (1, r)
+        else:
+            return (0, r)
+
+    def quotes(self, symbols):
         """
         """
-        pass
+        self.transactionCheck()
+        self.refresh_token()
+
+        params = {'symbol':','.join(symbols)}
+
+        r = self.get(
+            Endpoints.QUOTES,
+            params=params
+        )
+
+        if r.status_code == 200:
+            return (1, r)
+        else:
+            return (0, r)
+
+    def user_principals(
+        self, 
+        fields=['streamerSubscriptionKeys','streamerConnectionInfo']
+    ):
+        """
+        """
+        self.transactionCheck()
+        self.refresh_token()
+
+        params = {'fields' : ','.join(fields)}
+
+        r = self.get(
+            Endpoints.USER_PRINCIPALS,
+            params=params
+        )
+
+        if r.status_code == 200:
+            return (1, r)
+        else:
+            return (0, r)
 
 
