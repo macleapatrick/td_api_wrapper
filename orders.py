@@ -65,15 +65,24 @@ class Order:
         self.duration = duration
         self.orderStrategyType = orderStrategyType
         self.orderLegCollection = []
+        self.childOrderStrategies = []
+        self.price = ''
         self.__dict__.update(kwargs)
 
     def form(self):
         """
+        Return a dict of all class attributes if they have a value
         """
         if self._validate():
-            return self.__dict__
+            return {kw : self.__dict__[kw] for kw in self.__dict__ if self.__dict__[kw]}
         else:
             raise InvalidOrder
+
+    def addChildOrder(self, order):
+        """
+        Adds a child order, used for Trigger and OCO orders
+        """
+        self.childOrderStrategies.append(order)
 
     def set_limit(self, price):
         """
@@ -106,6 +115,15 @@ class Order:
             self.duration = Const.Duration.GOOD_TILL_CANCLED
         elif fof:
             self.duration = Const.Duration.FILL_OR_KILL
+
+    def set_strategy_type(self, trigger=False, oco=False):
+        """
+        Set stategy type
+        """
+        if trigger:
+            self.orderStrategyType = Const.OrderStrategyType.TRIGGER
+        elif oco:
+            self.orderStrategyType = Const.OrderStrategyType.OCO
 
     def set_session(self, am=False, pm= False, seamless=False):
         """
