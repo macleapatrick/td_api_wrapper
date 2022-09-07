@@ -170,11 +170,20 @@ class QuoteFields(Enum):
     REG_MRK_TRADE_TIME_LONG = '52'
 
 
+class QuoteOHLC(Enum):
+    SYMBOL                  = '0'
+    BID_PRICE               = '1'
+    ASK_PRICE               = '2'
+    LAST_PRICE              = '3'
+    TOTAL_VOLUME            = '8'
+
+
 class Quote:
     NAME                    = 'QUOTE'
     SUBS                    = 'SUBS'
     UNSUBS                  = 'UNSUBS'
     FIELDS                  = QuoteFields
+    OHLC_STREAM             = QuoteOHLC
 
 
 class FutureFields(Enum):
@@ -216,16 +225,25 @@ class FutureFields(Enum):
     FUTURE_EXPIRATION_DATE  = '35'
 
 
+class FutureOHLC(Enum):
+    SYMBOL                  = '0'
+    BID_PRICE               = '1'
+    ASK_PRICE               = '2'
+    LAST_PRICE              = '3'
+    TOTAL_VOLUME            = '8'
+
+
 class LevelOneFutures:
     NAME                    = 'LEVELONE_FUTURES'
     SUBS                    = 'SUBS'
     UNSUBS                  = 'UNSUBS'
     FIELDS                  = FutureFields
+    OHLC_STREAM             = FutureOHLC
 
 
 class StreamerServices:
     ACCT_ACTIVITY           = None
-    ADMIN                   = Admin()
+    ADMIN                   = Admin
     ACTIVES_NASDAQ          = None
     ACTIVES_NYSE            = None
     ACTIVES_OTCBB           = None
@@ -239,8 +257,8 @@ class StreamerServices:
     CHART_EQUITY            = None
     CHART_FUTURES           = None
     CHART_HISTORY_FUTURES   = None
-    QUOTE                   = Quote()
-    LEVELONE_FUTURES        = LevelOneFutures()
+    QUOTE                   = Quote
+    LEVELONE_FUTURES        = LevelOneFutures
     LEVELONE_FOREX          = None
     LEVELONE_FUTURES_OPTIONS= None
     OPTION                  = None

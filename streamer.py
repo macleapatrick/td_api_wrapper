@@ -23,7 +23,7 @@ class StreamerBase:
 
         self.streamer_url = ''
         self.subscriptions = []
-        self.buffer = []
+        self.buffer = {}
 
         self.loggedin = False
         self.logout = False
@@ -46,7 +46,7 @@ class StreamerBase:
         async with websockets.connect(self.streamer_url) as self._websocket:
             if not self.loggedin:
                 await self._websocket.send(json.dumps(self.login_request()))
-                print(json.loads(await self._websocket.recv()))
+                print(await self._websocket.recv())
 
                 for subscription in self.subscriptions:
                     await self._websocket.send(json.dumps(subscription))
@@ -57,11 +57,11 @@ class StreamerBase:
             while not self.logout:
                 message = await self._websocket.recv()
                 self._store(message)
-                #print(message)
 
                 if self.logout:
                     await self._websocket.send(json.dumps(self.logout_request()))
                     print(await self._websocket.recv())
+                    self.logout, self.loggedin = False, False
 
     def _start(self):
         """
@@ -97,7 +97,19 @@ class StreamerBase:
         self.subscriptions.append(self._request(service, command, parameters))
 
     def _store(self, message):
-        self.buffer.append(json.loads(message))
+        """
+        Stores all recieved messages from streamer into a buffer broken up by
+        service type
+        """
+        message = json.loads(message)
+        for header in message:
+            for data in message[header]:
+                service = data.get('service')
+                if service in self.buffer:
+                    self.buffer[service].append(data)
+                elif service:
+                    self.buffer[service] = []
+                    self.buffer[service].append(data)
 
     def parse_principals(
             self, 
@@ -202,12 +214,15 @@ class Streamer(StreamerBase):
         self.logout = True
         self.thread.join() 
 
-    def process(self):
+    def process(self, service):
         """
-        return all messages in buffer and then clear buffer
+        return all messages for given service in buffer and then clear buffer
         """
-        messages = self.buffer
-        self.buffer = []
+        if service not in self.buffer:
+            return None
+
+        messages = self.buffer[service]
+        self.buffer[service] = []
         return messages
 
     def equity_quote_stream(
@@ -218,13 +233,7 @@ class Streamer(StreamerBase):
         """
         """
         if not fields:
-            fields=[
-                Stream.QUOTE.FIELDS.SYMBOL.value,
-                Stream.QUOTE.FIELDS.BID_PRICE.value,
-                Stream.QUOTE.FIELDS.ASK_PRICE.value,
-                Stream.QUOTE.FIELDS.LAST_PRICE.value,
-                Stream.QUOTE.FIELDS.TOTAL_VOLUME.value
-            ]
+            fields=[e.value for e in Stream.QUOTE.OHLC_STREAM]
 
         self._add_subscription(
             service=Stream.QUOTE.NAME,
@@ -240,13 +249,7 @@ class Streamer(StreamerBase):
         """
         """
         if not fields:
-            fields = [
-                Stream.LEVELONE_FUTURES.FIELDS.SYMBOL.value,
-                Stream.LEVELONE_FUTURES.FIELDS.BID_PRICE.value,
-                Stream.LEVELONE_FUTURES.FIELDS.ASK_PRICE.value,
-                Stream.LEVELONE_FUTURES.FIELDS.LAST_PRICE.value,
-                Stream.LEVELONE_FUTURES.FIELDS.TOTAL_VOLUME.value
-            ]
+            fields = [e.value for e in Stream.LEVELONE_FUTURES.OHLC_STREAM]
 
         self._add_subscription(
             service=Stream.LEVELONE_FUTURES.NAME,
